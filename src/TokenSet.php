@@ -3,7 +3,8 @@ namespace Auth0\Auth;
 
 use \stdClass;
 
-final class TokenSet {
+final class TokenSet
+{
 
     private $idToken;
     private $idTokenClaims;

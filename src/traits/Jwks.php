@@ -1,7 +1,8 @@
 <?php
 namespace Auth0\Auth\Traits;
 
-trait Jwks {
+trait Jwks
+{
 
     protected $jwks;
 
@@ -14,20 +15,21 @@ trait Jwks {
     protected function getJwks()
     {
         // TODO: Caching
-        if ( $this->jwks ) {
+        if ($this->jwks ) {
             return $this->jwks;
         }
 
         // TODO: Config value testing
         // TODO: HTTP error handling
-        $jwks_uri = $this->getDiscoveryValue( 'jwks_uri' );
-        $jwks = $this->httpRequest( $jwks_uri );
-        $this->jwks = $this->prepareJwks( $jwks );
+        $jwks_uri = $this->getDiscoveryValue('jwks_uri');
+        $jwks = $this->httpRequest($jwks_uri);
+        $this->jwks = $this->prepareJwks($jwks);
         return $this->jwks;
     }
 
-    protected function prepareJwks( $jwks ) {
-        if ( empty( $jwks->keys ) && ! is_iterable( $jwks->keys ) ) {
+    protected function prepareJwks( $jwks )
+    {
+        if (empty($jwks->keys) && ! is_iterable($jwks->keys) ) {
             return [];
         }
 

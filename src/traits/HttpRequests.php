@@ -5,7 +5,8 @@ use Http\Discovery\HttpClientDiscovery;
 use Http\Discovery\MessageFactoryDiscovery;
 use \stdClass;
 
-trait HttpRequests {
+trait HttpRequests
+{
 
     protected $httpClient;
     protected $httpMessageFactory;
@@ -13,7 +14,7 @@ trait HttpRequests {
     /**
      * @param $url
      * @param string $method
-     * @param array $body
+     * @param array  $body
      *
      * @return mixed
      * @throws \Exception
@@ -21,16 +22,16 @@ trait HttpRequests {
      */
     protected function httpRequest( string $url, string $method = 'GET', array $body = null ): stdClass
     {
-        if ( ! $this->httpClient ) {
+        if (! $this->httpClient ) {
             $this->httpClient = HttpClientDiscovery::find();
         }
 
-        if ( ! $this->httpMessageFactory ) {
+        if (! $this->httpMessageFactory ) {
             $this->httpMessageFactory = MessageFactoryDiscovery::find();
         }
 
-        $message = $this->httpMessageFactory->createRequest( $method, $url, [], $body );
-        $response = $this->httpClient->sendRequest( $message )->getBody();
-        return json_decode( $response );
+        $message = $this->httpMessageFactory->createRequest($method, $url, [], $body);
+        $response = $this->httpClient->sendRequest($message)->getBody();
+        return json_decode($response);
     }
 }

@@ -37,12 +37,12 @@ class Login
      */
     final public function loginWithRedirect( array $config = [] ): void
     {
-        $auth_ep_url = $this->getDiscoveryValue( 'authorization_endpoint' );
+        $auth_ep_url = $this->getDiscoveryValue('authorization_endpoint');
         $config['nonce'] = $this->createNonce();
-        $auth_params = $this->prepareAuthParams( $config );
-        $auth0_login_url = $auth_ep_url.'?'.http_build_query( $auth_params );
-        $this->setNonce( $config['nonce'] );
-        header( 'Location: '.$auth0_login_url );
+        $auth_params = $this->prepareAuthParams($config);
+        $auth0_login_url = $auth_ep_url.'?'.http_build_query($auth_params);
+        $this->setNonce($config['nonce']);
+        header('Location: '.$auth0_login_url);
     }
 
     /**
@@ -53,11 +53,11 @@ class Login
     final public function callbackHandleIdToken(): TokenSet
     {
         $id_token = $_POST['id_token'] ?? null;
-        if ( !$id_token ) {
+        if (!$id_token ) {
             return null;
         }
 
-        return $this->decodeIdToken( $id_token );
+        return $this->decodeIdToken($id_token);
     }
 
     /**
@@ -67,21 +67,21 @@ class Login
      */
     final public function callbackHandleCode(): TokenSet
     {
-        $tokens = new TokenSet( new stdClass );
+        $tokens = new TokenSet(new stdClass);
         $code = $_POST['code'] ?? null;
-        if ( !$code ) {
+        if (!$code ) {
             return $tokens;
         }
 
-        $token_ep_url = $this->getDiscoveryValue( 'token_endpoint' );
-        $token_obj = $this->httpRequest( $token_ep_url );
+        $token_ep_url = $this->getDiscoveryValue('token_endpoint');
+        $token_obj = $this->httpRequest($token_ep_url);
 
-        if ( $token_obj->id_token ) {
-            $tokens = $this->decodeIdToken( $token_obj->id_token );
+        if ($token_obj->id_token ) {
+            $tokens = $this->decodeIdToken($token_obj->id_token);
         }
 
-        $tokens->setAccessToken( $token_obj->access_token ?? null );
-        $tokens->setRefreshToken( $token_obj->refresh_token ?? null );
+        $tokens->setAccessToken($token_obj->access_token ?? null);
+        $tokens->setRefreshToken($token_obj->refresh_token ?? null);
 
         return $tokens;
     }
@@ -95,14 +95,16 @@ class Login
      */
     final public function decodeIdToken( $id_token ): TokenSet
     {
-        $token_validator = new IdTokenVerifier( [
+        $token_validator = new IdTokenVerifier(
+            [
             'algorithm' => $this->idTokenAlg,
             'signature_key' => 'RS256' === $this->idTokenAlg ? $this->getJwks() : $this->clientSecret,
             'client_id' => $this->clientId,
-            'issuer' => $this->getDiscoveryValue( 'issuer' ),
-        ] );
+            'issuer' => $this->getDiscoveryValue('issuer'),
+             ] 
+        );
 
-        return $token_validator->decode( $id_token, $this->getNonce() );
+        return $token_validator->decode($id_token, $this->getNonce());
     }
 
     /**
@@ -116,7 +118,7 @@ class Login
             $this->clientId,
             $federated ? '&federated' : ''
         );
-        header( 'Location: '.$auth0_logout_url );
+        header('Location: '.$auth0_logout_url);
     }
 
     public function logout()
@@ -138,7 +140,7 @@ class Login
             'response_type' => $audience ? 'id_token code' : 'id_token',
             'scope' => $config['scope'] ?? 'openid profile email',
         ];
-        return array_filter( $auth_params );
+        return array_filter($auth_params);
     }
 
     public function isAuthenticated()
