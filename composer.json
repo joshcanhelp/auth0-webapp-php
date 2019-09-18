@@ -1,0 +1,30 @@
+{
+  "name": "joshcanhelp/auth0-webapp-php",
+  "description": "OpenID Connect Authentication for Auth0",
+  "type": "project",
+  "require": {
+    "php": "^7.1",
+    "firebase/php-jwt" : "^5.0",
+    "php-http/message": "^1.8",
+    "php-http/guzzle6-adapter": "^2.0",
+    "php-http/curl-client": "^2.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^7"
+  },
+  "autoload": {
+    "psr-4": {
+      "Auth0\\Auth\\": "src"
+    }
+  },
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Josh Cunningham",
+      "email": "josh@joshcanhelp.com"
+    }
+  ],
+  "scripts": {
+    "test"     : "vendor/bin/phpunit ./tests/*"
+  }
+}
