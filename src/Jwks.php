@@ -22,7 +22,7 @@ class Jwks
      * @throws \Exception
      * @throws \Http\Client\Exception
      */
-    public function getJwks()
+    public function get()
     {
         // TODO: Caching
         if ($this->jwks ) {

@@ -167,7 +167,7 @@ class Login
         switch( $this->idTokenAlg ) {
         case 'RS256':
             $jwks = new Jwks($this->issuerBaseUrl);
-            return $jwks->getJwks();
+            return $jwks->get();
                 break;
 
         case 'HS256':
