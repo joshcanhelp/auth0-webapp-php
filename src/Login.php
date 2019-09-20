@@ -1,16 +1,24 @@
 <?php
-
+/**
+ * Contains class Login.
+ *
+ * @package Auth0\Auth
+ */
 namespace Auth0\Auth;
 
 use Auth0\Auth\Traits;
 use \stdClass;
 
+/**
+ * Class Login
+ *
+ * @package Auth0\Auth
+ */
 class Login
 {
     use Traits\DiscoveryDoc;
     use Traits\HttpRequests;
     use Traits\Nonce;
-    use Traits\Jwks;
 
     const DEFAULT_ID_TOKEN_ALG = 'RS256';
 
@@ -20,6 +28,11 @@ class Login
     protected $clientSecret;
     protected $idTokenAlg;
 
+    /**
+     * Login constructor.
+     *
+     * @param array $config - See method body for config options used.
+     */
     public function __construct( array $config )
     {
         $this->issuerBaseUrl = $config['issuer_base_url'] ?? $_ENV['AUTH0_ISSUER_BASE_URL'] ?? null;
@@ -80,8 +93,8 @@ class Login
             $tokens = $this->decodeIdToken($token_obj->id_token);
         }
 
-        $tokens->setAccessToken($token_obj->access_token ?? null);
-        $tokens->setRefreshToken($token_obj->refresh_token ?? null);
+        $tokens->setAccessToken($token_obj);
+        $tokens->setRefreshToken($token_obj);
 
         return $tokens;
     }
@@ -97,11 +110,11 @@ class Login
     {
         $token_validator = new IdTokenVerifier(
             [
-            'algorithm' => $this->idTokenAlg,
-            'signature_key' => 'RS256' === $this->idTokenAlg ? $this->getJwks() : $this->clientSecret,
-            'client_id' => $this->clientId,
-            'issuer' => $this->getDiscoveryValue('issuer'),
-             ] 
+                'algorithm' => $this->idTokenAlg,
+                'signature_key' => $this->getSignatureKey(),
+                'client_id' => $this->clientId,
+                'issuer' => $this->getDiscoveryValue('issuer'),
+             ]
         );
 
         return $token_validator->decode($id_token, $this->getNonce());
@@ -112,6 +125,7 @@ class Login
      */
     final public function logoutWithRedirect( $federated = false ): void
     {
+        $this->logout();
         $auth0_logout_url = sprintf(
             '%s/vs/logout?client_id=%s',
             $this->issuerBaseUrl,
@@ -141,6 +155,28 @@ class Login
             'scope' => $config['scope'] ?? 'openid profile email',
         ];
         return array_filter($auth_params);
+    }
+
+    /**
+     * @return mixed|null
+     * @throws \Exception
+     * @throws \Http\Client\Exception
+     */
+    public function getSignatureKey()
+    {
+        switch( $this->idTokenAlg ) {
+        case 'RS256':
+            $jwks = new Jwks($this->issuerBaseUrl);
+            return $jwks->getJwks();
+                break;
+
+        case 'HS256':
+            return $this->clientSecret;
+                break;
+
+        default:
+            return null;
+        }
     }
 
     public function isAuthenticated()

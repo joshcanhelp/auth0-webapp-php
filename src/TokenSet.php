@@ -9,6 +9,8 @@ final class TokenSet
     private $idToken;
     private $idTokenClaims;
     private $accessToken;
+    private $accessTokenScopes;
+    private $accessTokenExpiresIn;
     private $refreshToken;
 
     public function __construct( stdClass $tokenObject )
@@ -24,9 +26,16 @@ final class TokenSet
         return (string) $this->idTokenClaims->$claim ?? null;
     }
 
-    public function setAccessToken( $access_token ): void
+    public function getClaims(): stdClass
     {
-        $this->accessToken = $access_token;
+        return $this->idTokenClaims;
+    }
+
+    public function setAccessToken( stdClass $tokens ): void
+    {
+        $this->accessToken = $tokens->access_token ?? null;
+        $this->accessTokenExpiresIn = intval($tokens->expires_in ?? 0);
+        $this->accessTokenScopes = $tokens->scopes ?? null;
     }
 
     public function getAccessToken(): string
@@ -34,9 +43,19 @@ final class TokenSet
         return $this->accessToken;
     }
 
-    public function setRefreshToken( $refresh_token ): void
+    public function getAccessTokenExpiresIn(): int
     {
-        $this->refreshToken = $refresh_token;
+        return $this->accessTokenExpiresIn;
+    }
+
+    public function getAccessTokenScopes(): string
+    {
+        return $this->accessTokenScopes;
+    }
+
+    public function setRefreshToken( stdClass $tokens ): void
+    {
+        $this->refreshToken = $tokens->refresh_token ?? null;
     }
 
     public function getRefreshToken(): string

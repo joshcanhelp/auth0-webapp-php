@@ -1,10 +1,20 @@
 <?php
-namespace Auth0\Auth\Traits;
+namespace Auth0\Auth;
 
-trait Jwks
+use Auth0\Auth\Traits;
+
+class Jwks
 {
+    use Traits\DiscoveryDoc;
+    use Traits\HttpRequests;
 
     protected $jwks;
+    protected $issuerBaseUrl;
+
+    public function __construct( $issuerBaseUrl )
+    {
+        $this->issuerBaseUrl = $issuerBaseUrl;
+    }
 
     /**
      * @return mixed
@@ -12,7 +22,7 @@ trait Jwks
      * @throws \Exception
      * @throws \Http\Client\Exception
      */
-    protected function getJwks()
+    public function getJwks()
     {
         // TODO: Caching
         if ($this->jwks ) {
@@ -43,11 +53,7 @@ trait Jwks
 
     protected function convertCertToPem($cert)
     {
-        return sprintf(
-            '-----BEGIN CERTIFICATE-----%s%s-----END CERTIFICATE-----%s',
-            PHP_EOL,
-            chunk_split($cert, 64, PHP_EOL),
-            PHP_EOL
-        );
+        $split_string = chunk_split($cert, 64, PHP_EOL);
+        return sprintf('-----BEGIN CERTIFICATE-----%s%s-----END CERTIFICATE-----%s', PHP_EOL, $split_string, PHP_EOL);
     }
 }
