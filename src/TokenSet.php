@@ -12,9 +12,11 @@ final class TokenSet
     private $accessTokenScopes;
     private $accessTokenExpiresIn;
     private $refreshToken;
+    private $state;
 
-    public function __construct( stdClass $tokenObject )
+    public function __construct( stdClass $tokenObject = null )
     {
+        $tokenObject = $tokenObject ?? new stdClass();
         $this->idToken = $tokenObject->id_token ?? null;
         $this->idTokenClaims = $tokenObject->id_token_claims ?? new stdClass;
         $this->accessToken = $tokenObject->access_token ?? null;
@@ -38,28 +40,39 @@ final class TokenSet
         $this->accessTokenScopes = $tokens->scopes ?? null;
     }
 
-    public function getAccessToken(): string
+    public function getAccessToken() : string
     {
         return $this->accessToken;
     }
 
-    public function getAccessTokenExpiresIn(): int
+    public function getAccessTokenExpiresIn() : int
     {
         return $this->accessTokenExpiresIn;
     }
 
-    public function getAccessTokenScopes(): string
+    public function getAccessTokenScopes() : string
     {
         return $this->accessTokenScopes;
     }
 
-    public function setRefreshToken( stdClass $tokens ): void
+    public function setRefreshToken( stdClass $tokens ) : void
     {
         $this->refreshToken = $tokens->refresh_token ?? null;
     }
 
-    public function getRefreshToken(): string
+    public function getRefreshToken() : string
     {
         return $this->refreshToken;
+    }
+
+    public function setState( string $state ) : void
+    {
+        $this->state = $state;
+    }
+
+    public function getState() : stdClass
+    {
+        $decoded_state = json_decode( base64_decode( $this->state ) );
+        return $decoded_state ?? new stdClass();
     }
 }

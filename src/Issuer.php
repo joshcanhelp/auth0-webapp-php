@@ -32,8 +32,8 @@ class Issuer
 
         // TODO: Config value testing
         // TODO: HTTP error handling
-        $discovry_url = $this->issuerBaseUrl . '/.well-known/openid-configuration';
-        $this->discoveryDoc = $this->httpRequest($discovry_url);
+        $discovery_url = $this->issuerBaseUrl . '/.well-known/openid-configuration';
+        $this->discoveryDoc = $this->httpGet($discovery_url);
         return $this->discoveryDoc->$key ?? null;
     }
 
@@ -53,7 +53,7 @@ class Issuer
         // TODO: Config value testing
         // TODO: HTTP error handling
         $jwks_uri = $this->getDiscoveryValue('jwks_uri');
-        $jwks = $this->httpRequest($jwks_uri);
+        $jwks = $this->httpGet($jwks_uri);
         $this->jwks = $this->prepareJwks($jwks);
         return $this->jwks;
     }
