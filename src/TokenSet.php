@@ -72,7 +72,7 @@ final class TokenSet
 
     public function getState() : stdClass
     {
-        $decoded_state = json_decode( base64_decode( $this->state ) );
+        $decoded_state = json_decode(base64_decode($this->state));
         return $decoded_state ?? new stdClass();
     }
 }

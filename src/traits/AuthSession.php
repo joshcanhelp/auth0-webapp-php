@@ -30,12 +30,12 @@ trait AuthSession
     protected function createState( array $state ) : string
     {
         $state['nonce'] = $this->createNonce();
-        return base64_encode( json_encode( $state ) );
+        return base64_encode(json_encode($state));
     }
 
     protected function getNonce() : string
     {
-        return $this->getAuthSession( $this->getNonceKey() );
+        return $this->getAuthSession($this->getNonceKey());
     }
 
     /**
@@ -46,9 +46,9 @@ trait AuthSession
      */
     protected function getValidState( string $received_state ) : string
     {
-        $stored_state = $this->getAuthSession( $this->getStateKey() );
-        if ( $received_state !== $stored_state ) {
-            throw new \Exception( 'Invalid state' );
+        $stored_state = $this->getAuthSession($this->getStateKey());
+        if ($received_state !== $stored_state ) {
+            throw new \Exception('Invalid state');
         }
         return $stored_state;
     }
@@ -62,12 +62,12 @@ trait AuthSession
 
     protected function setNonce( string $value ) : bool
     {
-        return $this->setAuthSession( $this->getNonceKey(), $value );
+        return $this->setAuthSession($this->getNonceKey(), $value);
     }
 
     protected function setState( string $value ) : bool
     {
-        return $this->setAuthSession( $this->getStateKey(), $value );
+        return $this->setAuthSession($this->getStateKey(), $value);
     }
 
     protected function setAuthSession( string $key, string $value ) : bool

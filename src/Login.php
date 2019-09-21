@@ -40,24 +40,24 @@ class Login
     public function __construct( array $config )
     {
         $this->issuerBaseUrl = $config['issuer_base_url'] ?? $_ENV['AUTH0_ISSUER_BASE_URL'] ?? '';
-        if ( ! $this->issuerBaseUrl ) {
-            throw new \Exception( 'Issuer base URL is required.' );
+        if (! $this->issuerBaseUrl ) {
+            throw new \Exception('Issuer base URL is required.');
         }
 
         $this->clientId = $config['client_id'] ?? $_ENV['AUTH0_CLIENT_ID'] ?? null;
-        if ( ! $this->clientId ) {
-            throw new \Exception( 'Client ID is required.' );
+        if (! $this->clientId ) {
+            throw new \Exception('Client ID is required.');
         }
 
         $this->redirectUri = $config['redirect_uri'] ?? $_ENV['AUTH0_REDIRECT_URI'] ?? null;
-        if ( ! $this->redirectUri ) {
-            throw new \Exception( 'Redirect URI is required.' );
+        if (! $this->redirectUri ) {
+            throw new \Exception('Redirect URI is required.');
         }
 
         $this->clientSecret = $config['client_secret'] ?? $_ENV['AUTH0_CLIENT_SECRET'] ?? null;
         $this->idTokenAlg = $config['id_token_alg'] ?? $_ENV['AUTH0_ID_TOKEN_ALG'] ?? self::DEFAULT_ID_TOKEN_ALG;
 
-        $this->issuer = new Issuer( $this->issuerBaseUrl );
+        $this->issuer = new Issuer($this->issuerBaseUrl);
     }
 
     /**
@@ -68,7 +68,7 @@ class Login
      */
     final public function loginWithRedirect( array $config = [] ): void
     {
-        $auth0_login_url = $this->getAuthorizeUrl( $config );
+        $auth0_login_url = $this->getAuthorizeUrl($config);
         header('Location: '.$auth0_login_url);
         exit;
     }
@@ -100,13 +100,13 @@ class Login
             'audience'      => $audience,
             'connection'    => $config['connection'] ?? null,
             'nonce'         => $this->createNonce(),
-            'state'         => $this->createState( $config['state'] ?? [] ),
+            'state'         => $this->createState($config['state'] ?? []),
             'prompt'        => $config['prompt'] ?? null,
             'response_mode' => $config['response_mode'] ?? 'form_post',
             'response_type' => $config['response_type'] ?? ( $audience ? 'id_token code' : 'id_token' ),
             'scope'         => $config['scope'] ?? 'openid profile email',
         ];
-        return array_filter( $auth_params );
+        return array_filter($auth_params);
     }
 
     /**
@@ -139,7 +139,7 @@ class Login
             return $tokens;
         }
 
-        $valid_state = $this->getValidState( $_POST['state'] ?? '' );
+        $valid_state = $this->getValidState($_POST['state'] ?? '');
 
         $token_ep_url = $this->issuer->getDiscoveryValue('token_endpoint');
         $code_exchange = [
@@ -150,13 +150,13 @@ class Login
             'grant_type' => 'authorization_code'
         ];
 
-        $token_obj = $this->httpPost($token_ep_url, $code_exchange );
+        $token_obj = $this->httpPost($token_ep_url, $code_exchange);
 
-        if ( ! empty( $token_obj->error ) ) {
-            throw new \Exception( $token_obj->error_description ?? $token_obj->error );
+        if (! empty($token_obj->error) ) {
+            throw new \Exception($token_obj->error_description ?? $token_obj->error);
         }
 
-        if ( $token_obj->id_token ) {
+        if ($token_obj->id_token ) {
             $tokens = $this->decodeIdToken($token_obj->id_token);
         }
 
@@ -217,17 +217,17 @@ class Login
     public function getSignatureKey()
     {
         switch( $this->idTokenAlg ) {
-            case 'RS256':
-                $jwks = new Issuer($this->issuerBaseUrl);
-                return $jwks->getJwks();
+        case 'RS256':
+            $jwks = new Issuer($this->issuerBaseUrl);
+            return $jwks->getJwks();
                     break;
 
-            case 'HS256':
-                return $this->clientSecret;
+        case 'HS256':
+            return $this->clientSecret;
                     break;
 
-            default:
-                return null;
+        default:
+            return null;
         }
     }
 

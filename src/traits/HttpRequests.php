@@ -12,7 +12,7 @@ trait HttpRequests
     protected $httpMessageFactory;
 
     /**
-     * @param string $url
+     * @param string        $url
      * @param TokenSet|null $token_set
      *
      * @return \stdClass
@@ -22,12 +22,12 @@ trait HttpRequests
     protected function httpGet( string $url, TokenSet $token_set = null ) : \stdClass
     {
         $headers = $token_set ? [ 'Authorization' => 'Bearer ' . $token_set->getAccessToken() ] : [];
-        return $this->httpRequest( 'GET', $url, $headers );
+        return $this->httpRequest('GET', $url, $headers);
     }
 
     /**
      * @param string $url
-     * @param array $body
+     * @param array  $body
      *
      * @return \stdClass
      * @throws \Exception
@@ -36,14 +36,14 @@ trait HttpRequests
     protected function httpPost( string $url, array $body ) : \stdClass
     {
         $headers = [ 'Content-Type' => 'application/json' ];
-        return $this->httpRequest( 'POST', $url, $headers, $body );
+        return $this->httpRequest('POST', $url, $headers, $body);
     }
 
     /**
      * @param string $url
      * @param string $method
-     * @param array $headers
-     * @param array $body
+     * @param array  $headers
+     * @param array  $body
      *
      * @return \stdClass
      * @throws \Exception
@@ -59,7 +59,7 @@ trait HttpRequests
             $this->httpMessageFactory = MessageFactoryDiscovery::find();
         }
 
-        $body = json_encode( $body );
+        $body = json_encode($body);
         $message = $this->httpMessageFactory->createRequest($method, $url, $headers, $body);
         $response = $this->httpClient->sendRequest($message)->getBody();
         return json_decode($response);
