@@ -35,7 +35,7 @@ class IdTokenVerifier
      *
      * @throws \Exception
      */
-    public function __construct(array $config)
+    public function __construct( array $config )
     {
         // Token algorithm to verify signature.
         if (empty($config['algorithm']) || ! in_array($config['algorithm'], [ 'HS256', 'RS256' ])) {
@@ -73,7 +73,7 @@ class IdTokenVerifier
      * @return mixed
      * @throws \Exception
      */
-    public function decode($jwt, $nonce)
+    public function decode( string $jwt, string $nonce ) : TokenSet
     {
         try {
             $jwt_obj = $this->decodeToken($jwt, $this->signature_key);
@@ -136,7 +136,7 @@ class IdTokenVerifier
      *
      * @codeCoverageIgnore
      */
-    protected function decodeToken($jwt, $secret)
+    protected function decodeToken( string $jwt, $secret ) : \stdClass
     {
         return JWT::decode($jwt, $secret, [ $this->algorithm ]);
     }

@@ -16,7 +16,6 @@ use \stdClass;
  */
 class Login
 {
-    use Traits\DiscoveryDoc;
     use Traits\HttpRequests;
     use Traits\Nonce;
 
@@ -27,6 +26,7 @@ class Login
     protected $redirectUri;
     protected $clientSecret;
     protected $idTokenAlg;
+    protected $issuer;
 
     /**
      * Login constructor.
@@ -37,20 +37,24 @@ class Login
     {
         $this->issuerBaseUrl = $config['issuer_base_url'] ?? $_ENV['AUTH0_ISSUER_BASE_URL'] ?? null;
         $this->clientId = $config['client_id'] ?? $_ENV['AUTH0_CLIENT_ID'] ?? null;
-        $this->redirectUri = $config['redirect_uri'] ?? $_ENV['AUTH0_REDIRECT_URI'] ?? null;
         $this->clientSecret = $config['client_secret'] ?? $_ENV['AUTH0_CLIENT_SECRET'] ?? null;
+        $this->redirectUri = $config['redirect_uri'] ?? $_ENV['AUTH0_REDIRECT_URI'] ?? null;
         $this->idTokenAlg = $config['id_token_alg'] ?? $_ENV['AUTH0_ID_TOKEN_ALG'] ?? self::DEFAULT_ID_TOKEN_ALG;
+
+        $this->issuer = new Issuer( $this->issuerBaseUrl );
     }
 
     /**
-     * @param array $config
+     * Redirect to the authorize endpoint.
+     *
+     * @param array $config Array of configuration options.
      *
      * @throws \Exception
      * @throws \Http\Client\Exception
      */
     final public function loginWithRedirect( array $config = [] ): void
     {
-        $auth_ep_url = $this->getDiscoveryValue('authorization_endpoint');
+        $auth_ep_url = $this->issuer->getDiscoveryValue('authorization_endpoint');
         $config['nonce'] = $this->createNonce();
         $auth_params = $this->prepareAuthParams($config);
         $auth0_login_url = $auth_ep_url.'?'.http_build_query($auth_params);
@@ -78,7 +82,7 @@ class Login
      * @throws \Exception
      * @throws \Http\Client\Exception
      */
-    final public function callbackHandleCode(): TokenSet
+    final public function callbackHandleCode() : TokenSet
     {
         $tokens = new TokenSet(new stdClass);
         $code = $_POST['code'] ?? null;
@@ -86,10 +90,19 @@ class Login
             return $tokens;
         }
 
-        $token_ep_url = $this->getDiscoveryValue('token_endpoint');
-        $token_obj = $this->httpRequest($token_ep_url);
+        $token_ep_url = $this->issuer->getDiscoveryValue('token_endpoint');
+        $code_exchange = [
+            'client_id' => $this->clientId,
+            'client_secret' => $this->clientSecret,
+            'redirect_uri' => $this->redirectUri,
+            'code' => $code,
+            'grant_type' => 'authorization_code'
+        ];
+        $token_obj = $this->httpRequest($token_ep_url, 'POST', json_encode( $code_exchange ) );
 
-        if ($token_obj->id_token ) {
+        // TODO: Remove debugging
+        echo '<pre>' . print_r( $token_obj, TRUE ) . '</pre>'; die();
+        if ( $token_obj->id_token ) {
             $tokens = $this->decodeIdToken($token_obj->id_token);
         }
 
@@ -106,14 +119,14 @@ class Login
      * @throws \Exception
      * @throws \Http\Client\Exception
      */
-    final public function decodeIdToken( $id_token ): TokenSet
+    final public function decodeIdToken( string $id_token ) : TokenSet
     {
         $token_validator = new IdTokenVerifier(
             [
                 'algorithm' => $this->idTokenAlg,
                 'signature_key' => $this->getSignatureKey(),
                 'client_id' => $this->clientId,
-                'issuer' => $this->getDiscoveryValue('issuer'),
+                'issuer' => $this->issuer->getDiscoveryValue('issuer'),
              ]
         );
 
@@ -123,7 +136,7 @@ class Login
     /**
      * @param bool $federated
      */
-    final public function logoutWithRedirect( $federated = false ): void
+    final public function logoutWithRedirect( $federated = false ) : void
     {
         $this->logout();
         $auth0_logout_url = sprintf(
@@ -140,7 +153,7 @@ class Login
         // TODO: Clear session
     }
 
-    public function prepareAuthParams( array $config )
+    public function prepareAuthParams( array $config ): array
     {
         $audience = $config['audience'] ?? null;
         $auth_params = [
@@ -158,7 +171,8 @@ class Login
     }
 
     /**
-     * @return mixed|null
+     * @return string|array|null
+     *
      * @throws \Exception
      * @throws \Http\Client\Exception
      */
@@ -166,8 +180,8 @@ class Login
     {
         switch( $this->idTokenAlg ) {
         case 'RS256':
-            $jwks = new Jwks($this->issuerBaseUrl);
-            return $jwks->get();
+            $jwks = new Issuer($this->issuerBaseUrl);
+            return $jwks->getJwks();
                 break;
 
         case 'HS256':
@@ -179,7 +193,7 @@ class Login
         }
     }
 
-    public function isAuthenticated()
+    public function isAuthenticated() : bool
     {
     }
 
