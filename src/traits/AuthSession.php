@@ -56,7 +56,7 @@ trait AuthSession
     protected function getAuthSession( string $key ) : string
     {
         $nonce = $_COOKIE[$key] ?? '';
-        $this->setNonce('');
+        $this->setAuthSession($key, '');
         return $nonce;
     }
 
