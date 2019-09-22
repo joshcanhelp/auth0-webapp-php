@@ -2,6 +2,8 @@
 
 namespace Auth0\Auth;
 
+use Auth0\Auth\Exception\IdTokenException;
+use Auth0\Auth\Exception\ConfigurationException;
 use Firebase\JWT\JWT;
 
 class IdTokenVerifier
@@ -33,97 +35,93 @@ class IdTokenVerifier
      *
      * @param array $config
      *
-     * @throws \Exception
+     * @throws ConfigurationException
      */
     public function __construct( array $config )
     {
         // Token algorithm to verify signature.
         if (empty($config['algorithm']) || ! in_array($config['algorithm'], [ 'HS256', 'RS256' ])) {
-            throw new \Exception('Config key "algorithm" is required to be HS256 or RS256');
+            throw new ConfigurationException('Config key "algorithm" is required to be HS256 or RS256');
         }
 
         $this->algorithm = (string) $config['algorithm'];
 
         // Need a signature key or JwksFetcher to verify token signature.
         if (empty($config['signature_key'])) {
-            throw new \Exception('Config key "signature_key" is required');
+            throw new ConfigurationException('Config key "signature_key" is required');
         }
 
         $this->signature_key = $config['signature_key'];
 
         // Client ID to validate aud and azp claim.
         if (empty($config['client_id'])) {
-            throw new \Exception('Config key "client_id" is required');
+            throw new ConfigurationException('Config key "client_id" is required');
         }
 
         $this->client_id = (string) $config['client_id'];
 
         // Issuer to validate where the token came from.
         if (empty($config['issuer'])) {
-            throw new \Exception('Config key "issuer" is required');
+            throw new ConfigurationException('Config key "issuer" is required');
         }
 
         $this->issuer = (string) $config['issuer'];
     }
 
     /**
-     * @param $jwt
-     * @param $nonce
+     * @param string $jwt
+     * @param string $nonce
      *
-     * @return mixed
-     * @throws \Exception
+     * @return TokenSet
+     *
+     * @throws IdTokenException
      */
     public function decode( string $jwt, string $nonce ) : TokenSet
     {
         try {
             $jwt_obj = $this->decodeToken($jwt, $this->signature_key);
         } catch (\Exception $e) {
-            throw new \Exception($e->getMessage());
+            throw new IdTokenException($e->getMessage(), $e->getCode(), $e->getPrevious());
         }
 
         // Check if nonce is valid.
         if (empty($jwt_obj->nonce) || $jwt_obj->nonce !== $nonce ) {
-            throw new \Exception('Invalid token nonce');
+            throw new IdTokenException('Invalid token nonce');
         }
         unset($jwt_obj->nonce);
 
         // Check if expiration is missing.
         if (empty($jwt_obj->exp)) {
-            throw new \Exception('Missing token exp');
+            throw new IdTokenException('Missing token exp');
         }
-        unset($jwt_obj->exp);
 
         // Check if issued-at is missing.
         if (empty($jwt_obj->iat)) {
-            throw new \Exception('Missing token iat');
+            throw new IdTokenException('Missing token iat');
         }
-        unset($jwt_obj->iat);
 
         // Check if issuer is missing.
         if (empty($jwt_obj->iss) || $jwt_obj->iss !== $this->issuer) {
-            throw new \Exception('Invalid token iss');
+            throw new IdTokenException('Invalid token iss');
         }
-        unset($jwt_obj->iss);
 
         // Check if audience is missing.
         if (empty($jwt_obj->aud)) {
-            throw new \Exception('Missing token aud');
+            throw new IdTokenException('Missing token aud');
         }
 
         // Check if the token audience is allowed.
         $token_aud = is_array($jwt_obj->aud) ? $jwt_obj->aud : [$jwt_obj->aud];
         if (! in_array($this->client_id, $token_aud)) {
-            throw new \Exception('Invalid token aud');
+            throw new IdTokenException('Invalid token aud');
         }
-        unset($jwt_obj->aud);
 
         // Check token azp value if token contains multiple audiences.
         if (count($token_aud) > 1 && (empty($jwt_obj->azp) || $jwt_obj->azp !== $this->client_id)) {
-            throw new \Exception('Invalid token azp');
+            throw new IdTokenException('Invalid token azp');
         }
-        unset($jwt_obj->azp);
 
-        return new TokenSet((object) [ 'id_token' => $jwt, 'id_token_claims' => $jwt_obj ]);
+        return new TokenSet((object) [ 'id_token' => $jwt, 'claims' => $jwt_obj ]);
     }
 
     /**

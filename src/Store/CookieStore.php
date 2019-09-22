@@ -16,15 +16,15 @@ class CookieStore implements StoreInterface
 
     public function delete( string $key ) : bool
     {
-        unset( $_COOKIE[$this->getKeyName($key)] );
+        unset($_COOKIE[$this->getKeyName($key)]);
         return setcookie($this->getKeyName($key), '', 0, '/');
     }
 
     public function clear()
     {
-        foreach ( array_keys( $_COOKIE ) as $key ) {
-            if ( StoreInterface::BASE_NAME === substr( $key, 0, strlen( StoreInterface::BASE_NAME ) ) ) {
-                $this->delete( $key );
+        foreach ( array_keys($_COOKIE) as $key ) {
+            if (StoreInterface::BASE_NAME === substr($key, 0, strlen(StoreInterface::BASE_NAME)) ) {
+                $this->delete($key);
             }
         }
     }

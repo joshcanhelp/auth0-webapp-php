@@ -26,7 +26,7 @@ class SessionCache implements CacheInterface
      */
     public function get($key, $default = null)
     {
-        return $this->has( $key ) ? $this->store->get($key)['value'] : $default;
+        return $this->has($key) ? $this->store->get($key)['value'] : $default;
     }
 
     /**
@@ -46,7 +46,7 @@ class SessionCache implements CacheInterface
             'value' => $value,
             'exp' => time() + ( $ttl ?? $this->defaultTtl ),
         ];
-        $this->store->set( $key, $to_store );
+        $this->store->set($key, $to_store);
         return true;
     }
 
@@ -59,7 +59,7 @@ class SessionCache implements CacheInterface
      */
     public function delete($key)
     {
-        $this->store->delete( $key );
+        $this->store->delete($key);
         return true;
     }
 
@@ -84,7 +84,7 @@ class SessionCache implements CacheInterface
      */
     public function getMultiple($keys, $default = null)
     {
-        if ( ! is_iterable( $keys ) ) {
+        if (! is_iterable($keys) ) {
             return [];
         }
 
@@ -108,7 +108,7 @@ class SessionCache implements CacheInterface
      */
     public function setMultiple($values, $ttl = null)
     {
-        if ( ! is_iterable( $values ) ) {
+        if (! is_iterable($values) ) {
             return false;
         }
 
@@ -128,12 +128,12 @@ class SessionCache implements CacheInterface
      */
     public function deleteMultiple($keys)
     {
-        if ( ! is_iterable( $keys ) ) {
+        if (! is_iterable($keys) ) {
             return false;
         }
 
         foreach ( $keys as $key ) {
-            $this->store->delete( $key );
+            $this->store->delete($key);
         }
 
         return true;
@@ -148,14 +148,14 @@ class SessionCache implements CacheInterface
      */
     public function has($key)
     {
-        $stored_value = $this->store->get( $key );
+        $stored_value = $this->store->get($key);
 
-        if ( ! $stored_value ) {
+        if (! $stored_value ) {
             return false;
         }
 
-        if ( time() > $stored_value['exp'] ) {
-            $this->delete( $key );
+        if (time() > $stored_value['exp'] ) {
+            $this->delete($key);
             return false;
         }
 

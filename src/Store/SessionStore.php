@@ -28,9 +28,9 @@ class SessionStore implements StoreInterface
 
     public function clear()
     {
-        foreach ( array_keys( $_SESSION ) as $key ) {
-            if ( StoreInterface::BASE_NAME === substr( $key, 0, strlen( StoreInterface::BASE_NAME ) ) ) {
-                $this->delete( $key );
+        foreach ( array_keys($_SESSION) as $key ) {
+            if (StoreInterface::BASE_NAME === substr($key, 0, strlen(StoreInterface::BASE_NAME)) ) {
+                $this->delete($key);
             }
         }
     }

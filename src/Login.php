@@ -11,10 +11,13 @@ namespace Auth0\Auth;
 use Auth0\Auth\AuthSession\Nonce;
 use Auth0\Auth\AuthSession\State;
 use Auth0\Auth\Cache\MemoryCache;
+use Auth0\Auth\Exception\Auth0Exception;
+use Auth0\Auth\Exception\ConfigurationException;
+use Auth0\Auth\Exception\HttpException;
+use Auth0\Auth\Exception\IdTokenException;
+use Auth0\Auth\Exception\IssuerException;
 use Auth0\Auth\Store\CookieStore;
-use Auth0\Auth\Store\SessionStore;
 use Auth0\Auth\Store\StoreInterface;
-use Auth0\Auth\Traits\HttpRequests;
 use Psr\SimpleCache\CacheInterface;
 
 /**
@@ -24,7 +27,7 @@ use Psr\SimpleCache\CacheInterface;
  */
 class Login
 {
-    use HttpRequests;
+    use Traits\HttpRequests;
 
     const DEFAULT_ID_TOKEN_ALG = 'RS256';
 
@@ -41,48 +44,61 @@ class Login
     protected $tokenStore;
     protected $cache;
 
+    /**
+     * Login constructor.
+     *
+     * @param array $config
+     *
+     * @throws ConfigurationException
+     * @throws IssuerException
+     */
     public function __construct( array $config )
     {
         $this->issuerBaseUrl = $config['issuer_base_url'] ?? $_ENV['AUTH0_ISSUER_BASE_URL'] ?? null;
         if (! $this->issuerBaseUrl ) {
-            throw new \Exception('Issuer base URL is required.');
+            throw new ConfigurationException('Issuer base URL is required.');
         }
 
         $this->clientId = $config['client_id'] ?? $_ENV['AUTH0_CLIENT_ID'] ?? null;
         if (! $this->clientId ) {
-            throw new \Exception('Client ID is required.');
+            throw new ConfigurationException('Client ID is required.');
         }
 
         $this->redirectUri = $config['redirect_uri'] ?? $_ENV['AUTH0_REDIRECT_URI'] ?? null;
         if (! $this->redirectUri ) {
-            throw new \Exception('"redirectUri" is required.');
+            throw new ConfigurationException('"redirectUri" is required.');
         }
 
         $this->idTokenAlg = $config['id_token_alg'] ?? $_ENV['AUTH0_ID_TOKEN_ALG'] ?? self::DEFAULT_ID_TOKEN_ALG;
 
         $this->clientSecret = $config['client_secret'] ?? $_ENV['AUTH0_CLIENT_SECRET'] ?? null;
         if ('HS256' === $this->idTokenAlg && !$this->clientSecret) {
-            throw new \Exception('"clientSecret" is required when ID token algorithm is HS256.');
+            throw new ConfigurationException('"clientSecret" is required when ID token algorithm is HS256.');
         }
 
-        $stateStore = isset( $config['auth_state_store'] ) && $config['auth_state_store'] instanceof StoreInterface ?
+        $stateStore = isset($config['auth_state_store']) && $config['auth_state_store'] instanceof StoreInterface ?
             $config['auth_state_store'] :
             new CookieStore();
-        $this->stateHandler = new State( $stateStore );
+        $this->stateHandler = new State($stateStore);
 
-        $nonceStore = isset( $config['auth_nonce_store'] ) && $config['auth_nonce_store'] instanceof StoreInterface ?
+        $nonceStore = isset($config['auth_nonce_store']) && $config['auth_nonce_store'] instanceof StoreInterface ?
             $config['auth_nonce_store'] :
             new CookieStore();
-        $this->nonceHandler = new Nonce( $nonceStore );
+        $this->nonceHandler = new Nonce($nonceStore);
 
-        $cache = isset( $config['cache'] ) && $config['cache'] instanceof CacheInterface ?
+        $cache = isset($config['cache']) && $config['cache'] instanceof CacheInterface ?
             $config['cache'] :
             new MemoryCache();
 
         $this->issuer = new Issuer($this->issuerBaseUrl, $cache);
-        $this->issuer->validateIdTokenAlg( $this->idTokenAlg );
+        $this->issuer->validateIdTokenAlg($this->idTokenAlg);
     }
 
+    /**
+     * @param array $config
+     *
+     * @throws IssuerException
+     */
     final public function loginWithRedirect( array $config = [] ): void
     {
         $auth0_login_url = $this->getAuthorizeUrl($config);
@@ -90,6 +106,13 @@ class Login
         exit;
     }
 
+    /**
+     * @param array $config
+     *
+     * @return string
+     *
+     * @throws IssuerException
+     */
     final public function getAuthorizeUrl( array $config = [] ): string
     {
         $auth_ep_url = $this->issuer->getDiscoveryProp('authorization_endpoint');
@@ -101,27 +124,39 @@ class Login
         return $auth_ep_url.'?'.http_build_query($auth_params);
     }
 
-    final public function callbackHandleIdToken() : TokenSet
+    /**
+     * @return TokenSet|null
+     *
+     * @throws Auth0Exception
+     */
+    final public function callbackHandleIdToken() : ?TokenSet
     {
         $id_token = $_POST['id_token'] ?? '';
         if (!$id_token ) {
-            return new TokenSet();
+            return null;
         }
 
-        return $this->decodeIdToken($id_token);
+        $valid_state = $this->stateHandler->getValidState($_POST['state'] ?? null);
+        $token_set = $this->decodeIdToken($id_token);
+        $token_set->setState($valid_state);
+        return $token_set;
     }
 
-    final public function callbackHandleCode() : TokenSet
+    /**
+     * @return TokenSet|null
+     *
+     * @throws Auth0Exception
+     * @throws HttpException
+     */
+    final public function callbackHandleCode() : ?TokenSet
     {
-        $tokens = new TokenSet();
-
-        // TODO: What about GET?
-        $code = $_POST['code'] ?? null;
+        $code = $_GET['code'] ?? $_POST['code'] ?? null;
         if (!$code) {
-            return $tokens;
+            return null;
         }
 
-        $valid_state = $this->stateHandler->getValidState($_POST['state'] ?? '');
+        $state = $_GET['state'] ?? $_POST['state'] ?? null;
+        $valid_state = $this->stateHandler->getValidState($state);
 
         $token_ep_url = $this->issuer->getDiscoveryProp('token_endpoint');
         $code_exchange = [
@@ -135,20 +170,23 @@ class Login
         $token_obj = $this->httpPost($token_ep_url, $code_exchange);
 
         if (! empty($token_obj->error) ) {
-            throw new \Exception($token_obj->error_description ?? $token_obj->error);
+            throw new Auth0Exception($token_obj->error_description ?? $token_obj->error);
         }
 
-        if ($token_obj->id_token ) {
-            $tokens = $this->decodeIdToken($token_obj->id_token);
-        }
+        $token_set = $token_obj->id_token ?$this->decodeIdToken($token_obj->id_token) : new TokenSet();
+        $token_set->setAccessToken($token_obj);
+        $token_set->setRefreshToken($token_obj);
+        $token_set->setState($valid_state);
 
-        $tokens->setAccessToken($token_obj);
-        $tokens->setRefreshToken($token_obj);
-        $tokens->setState($valid_state);
-
-        return $tokens;
+        return $token_set;
     }
 
+    /**
+     * @param string $id_token
+     *
+     * @return TokenSet
+     * @throws IdTokenException
+     */
     final public function decodeIdToken( string $id_token ) : TokenSet
     {
         $token_validator = new IdTokenVerifier(
@@ -175,6 +213,13 @@ class Login
         header('Location: '.$auth0_logout_url);
     }
 
+    /**
+     * @param array $config
+     *
+     * @return array
+     *
+     * @throws IssuerException
+     */
     public function prepareAuthParams( array $config ): array
     {
         $audience    = $config['audience'] ?? null;
@@ -191,7 +236,7 @@ class Login
             'scope'         => $config['scope'] ?? 'openid profile email',
         ];
         $auth_params = array_filter($auth_params);
-        $this->issuer->validateParams( $auth_params );
+        $this->issuer->validateParams($auth_params);
         return $auth_params;
     }
 
@@ -203,11 +248,11 @@ class Login
     public function getSignatureKey()
     {
         switch( $this->idTokenAlg ) {
-            case 'RS256':
-                return $this->issuer->getJwks();
+        case 'RS256':
+            return $this->issuer->getJwks();
 
-            case 'HS256':
-                return $this->clientSecret;
+        case 'HS256':
+            return $this->clientSecret;
         }
 
         return null;

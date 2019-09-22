@@ -1,13 +1,14 @@
 <?php
 namespace Auth0\Auth;
 
+use Auth0\Auth\AuthSession\State;
 use \stdClass;
 
 final class TokenSet
 {
 
     private $idToken;
-    private $idTokenClaims;
+    private $claims;
     private $accessToken;
     private $accessTokenScopes;
     private $accessTokenExpiresIn;
@@ -16,21 +17,21 @@ final class TokenSet
 
     public function __construct( ?stdClass $tokenObject = null )
     {
-        $tokenObject = $tokenObject ?? new stdClass();
-        $this->idToken = $tokenObject->id_token ?? null;
-        $this->idTokenClaims = $tokenObject->id_token_claims ?? new stdClass;
-        $this->accessToken = $tokenObject->access_token ?? null;
+        $tokenObject        = $tokenObject ?? new stdClass();
+        $this->idToken      = $tokenObject->id_token ?? null;
+        $this->claims       = $tokenObject->claims ?? new stdClass;
+        $this->accessToken  = $tokenObject->access_token ?? null;
         $this->refreshToken = $tokenObject->refresh_token ?? null;
     }
 
     public function getClaim( ?string $claim ): ?string
     {
-        return (string) $this->idTokenClaims->$claim ?? null;
+        return (string) $this->claims->$claim ?? null;
     }
 
     public function getClaims(): stdClass
     {
-        return $this->idTokenClaims;
+        return $this->claims;
     }
 
     public function setAccessToken( stdClass $tokens ): void
@@ -72,7 +73,7 @@ final class TokenSet
 
     public function getState() : stdClass
     {
-        $decoded_state = json_decode(base64_decode($this->state));
+        $decoded_state = State::decode($this->state);
         return $decoded_state ?? new stdClass();
     }
 }

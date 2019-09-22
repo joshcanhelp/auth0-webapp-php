@@ -1,6 +1,7 @@
 <?php
 namespace Auth0\Auth\Traits;
 
+use Auth0\Auth\Exception\HttpException;
 use Auth0\Auth\TokenSet;
 use Http\Discovery\HttpClientDiscovery;
 use Http\Discovery\MessageFactoryDiscovery;
@@ -16,8 +17,8 @@ trait HttpRequests
      * @param TokenSet|null $token_set
      *
      * @return \stdClass
-     * @throws \Exception
-     * @throws \Http\Client\Exception
+     *
+     * @throws HttpException
      */
     protected function httpGet( string $url, ?TokenSet $token_set = null ) : \stdClass
     {
@@ -30,8 +31,7 @@ trait HttpRequests
      * @param array  $body
      *
      * @return \stdClass
-     * @throws \Exception
-     * @throws \Http\Client\Exception
+     * @throws HttpException
      */
     protected function httpPost( string $url, array $body ) : \stdClass
     {
@@ -40,14 +40,14 @@ trait HttpRequests
     }
 
     /**
-     * @param string $url
      * @param string $method
+     * @param string $url
      * @param array  $headers
      * @param array  $body
      *
      * @return \stdClass
-     * @throws \Exception
-     * @throws \Http\Client\Exception
+     *
+     * @throws HttpException
      */
     protected function httpRequest( string $method, string $url, array $headers = [], array $body = [] ) : \stdClass
     {
@@ -60,8 +60,12 @@ trait HttpRequests
         }
 
         $body = json_encode($body);
-        $message = $this->httpMessageFactory->createRequest($method, $url, $headers, $body);
-        $response = $this->httpClient->sendRequest($message)->getBody();
+        try {
+            $message = $this->httpMessageFactory->createRequest($method, $url, $headers, $body);
+            $response = $this->httpClient->sendRequest($message)->getBody();
+        } catch (\Exception $e) {
+            throw new HttpException($e->getMessage(), $e->getCode(), $e->getPrevious());
+        }
         return json_decode($response);
     }
 }

@@ -25,7 +25,7 @@ class MemoryCache implements CacheInterface
      */
     public function get($key, $default = null)
     {
-        return $this->has( $key ) ? $this->cache[$key]['value'] : $default;
+        return $this->has($key) ? $this->cache[$key]['value'] : $default;
     }
 
     /**
@@ -82,7 +82,7 @@ class MemoryCache implements CacheInterface
      */
     public function getMultiple($keys, $default = null)
     {
-        if ( ! is_iterable( $keys ) ) {
+        if (! is_iterable($keys) ) {
             return [];
         }
 
@@ -106,7 +106,7 @@ class MemoryCache implements CacheInterface
      */
     public function setMultiple($values, $ttl = null)
     {
-        if ( ! is_iterable( $values ) ) {
+        if (! is_iterable($values) ) {
             return false;
         }
 
@@ -126,12 +126,12 @@ class MemoryCache implements CacheInterface
      */
     public function deleteMultiple($keys)
     {
-        if ( ! is_iterable( $keys ) ) {
+        if (! is_iterable($keys) ) {
             return false;
         }
 
         foreach ( $keys as $key ) {
-            $this->delete( $key );
+            $this->delete($key);
         }
 
         return true;
@@ -146,12 +146,12 @@ class MemoryCache implements CacheInterface
      */
     public function has($key)
     {
-        if ( ! isset( $this->cache[$key] ) ) {
+        if (! isset($this->cache[$key]) ) {
             return false;
         }
 
-        if ( time() > $this->cache[$key]['exp'] ) {
-            $this->delete( $key );
+        if (time() > $this->cache[$key]['exp'] ) {
+            $this->delete($key);
             return false;
         }
 

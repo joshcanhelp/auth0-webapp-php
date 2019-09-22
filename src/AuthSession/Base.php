@@ -30,7 +30,7 @@ abstract class Base
 
     public function get() : string
     {
-        if ( ! $this->value ) {
+        if (! $this->value ) {
             $this->value = $this->store->get($this->getKey(), '');
         }
         $this->store->delete($this->getKey());
