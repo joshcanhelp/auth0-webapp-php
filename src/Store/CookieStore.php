@@ -16,6 +16,7 @@ class CookieStore implements StoreInterface
 
     public function delete( $key ) : bool
     {
+        unset( $_COOKIE[$this->getKeyName($key)] );
         return setcookie($this->getKeyName($key), '', 0, '/');
     }
 
