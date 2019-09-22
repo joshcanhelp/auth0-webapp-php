@@ -10,6 +10,7 @@ abstract class Base
     const KEY_PREFIX = 'auth0_';
 
     protected $store;
+    protected $value;
 
     public function __construct( StoreInterface $store )
     {
@@ -29,14 +30,16 @@ abstract class Base
         return bin2hex($nonce_bits);
     }
 
-    public function get()
+    public function get() : string
     {
-        $value = $this->store->get($this->getKey());
+        if ( ! $this->value ) {
+            $this->value = $this->store->get($this->getKey(), '');
+        }
         $this->set('');
-        return $value;
+        return $this->value;
     }
 
-    public function set( string $value )
+    public function set( string $value ) : void
     {
         $this->store->set($this->getKey(), $value);
     }

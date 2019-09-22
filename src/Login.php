@@ -66,11 +66,20 @@ class Login
         $this->clientSecret = $config['client_secret'] ?? $_ENV['AUTH0_CLIENT_SECRET'] ?? null;
         $this->idTokenAlg = $config['id_token_alg'] ?? $_ENV['AUTH0_ID_TOKEN_ALG'] ?? self::DEFAULT_ID_TOKEN_ALG;
 
-        $this->stateHandler = new State(new CookieStore());
-        $this->nonceHandler = new Nonce(new CookieStore());
+        $stateStore = isset( $config['auth_state_store'] ) && $config['auth_state_store'] instanceof StoreInterface ?
+            new $config['auth_state_store'] :
+            new CookieStore();
+        $this->stateHandler = new State( $stateStore );
 
-        if ($config['persist_tokens'] ?? null ) {
-            $this->tokenStore = new SessionStore();
+        $nonceStore = isset( $config['auth_nonce_store'] ) && $config['auth_nonce_store'] instanceof StoreInterface ?
+            new $config['auth_nonce_store'] :
+            new CookieStore();
+        $this->nonceHandler = new Nonce( $nonceStore );
+
+        if ( $config['persist_tokens'] ?? null ) {
+            $this->tokenStore = isset( $config['token_store'] ) && $config['token_store'] instanceof StoreInterface ?
+                new $config['token_store'] :
+                new SessionStore();
         }
 
         $this->issuer = new Issuer($this->issuerBaseUrl);

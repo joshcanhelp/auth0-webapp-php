@@ -4,8 +4,6 @@ namespace Auth0\Auth\Store;
 
 class SessionStore implements StoreInterface
 {
-    const BASE_NAME = 'auth0_';
-
     public function __construct()
     {
         if (! session_id()) {
@@ -28,7 +26,7 @@ class SessionStore implements StoreInterface
         unset($_SESSION[$this->getKeyName($key)]);
     }
 
-    public function getKeyName( string $key )
+    public function getKeyName( string $key ) : string
     {
         return self::BASE_NAME.$key;
     }
