@@ -8,7 +8,12 @@ declare(strict_types=1);
  */
 namespace Auth0\Auth;
 
-use Auth0\Auth\Traits;
+use Auth0\Auth\AuthSession\Nonce;
+use Auth0\Auth\AuthSession\State;
+use Auth0\Auth\Store\CookieStore;
+use Auth0\Auth\Store\SessionStore;
+use Auth0\Auth\Store\StoreInterface;
+use Auth0\Auth\Traits\HttpRequests;
 
 /**
  * Class Login
@@ -17,8 +22,7 @@ use Auth0\Auth\Traits;
  */
 class Login
 {
-    use Traits\HttpRequests;
-    use Traits\AuthSession;
+    use HttpRequests;
 
     const DEFAULT_ID_TOKEN_ALG = 'RS256';
     const SESSION_BASE_NAME = 'auth0_';
@@ -29,6 +33,11 @@ class Login
     protected $clientSecret;
     protected $idTokenAlg;
     protected $issuer;
+    protected $stateStore;
+    protected $nonceStore;
+    protected $stateHandler;
+    protected $nonceHandler;
+    protected $tokenStore;
 
     /**
      * Login constructor.
@@ -56,6 +65,13 @@ class Login
 
         $this->clientSecret = $config['client_secret'] ?? $_ENV['AUTH0_CLIENT_SECRET'] ?? null;
         $this->idTokenAlg = $config['id_token_alg'] ?? $_ENV['AUTH0_ID_TOKEN_ALG'] ?? self::DEFAULT_ID_TOKEN_ALG;
+
+        $this->stateHandler = new State(new CookieStore());
+        $this->nonceHandler = new Nonce(new CookieStore());
+
+        if ($config['persist_tokens'] ?? null ) {
+            $this->tokenStore = new SessionStore();
+        }
 
         $this->issuer = new Issuer($this->issuerBaseUrl);
     }
@@ -85,8 +101,8 @@ class Login
         $auth_ep_url = $this->issuer->getDiscoveryValue('authorization_endpoint');
         $auth_params = $this->prepareAuthParams($config);
 
-        $this->setNonce($auth_params['nonce']);
-        $this->setState($auth_params['state']);
+        $this->nonceHandler->set($auth_params['nonce']);
+        $this->stateHandler->set($auth_params['state']);
 
         return $auth_ep_url.'?'.http_build_query($auth_params);
     }
@@ -99,8 +115,8 @@ class Login
             'redirect_uri'  => $this->redirectUri,
             'audience'      => $audience,
             'connection'    => $config['connection'] ?? null,
-            'nonce'         => $this->createNonce(),
-            'state'         => $this->createState($config['state'] ?? []),
+            'nonce'         => $this->nonceHandler->createNonce(),
+            'state'         => $this->stateHandler->create($config['state'] ?? []),
             'prompt'        => $config['prompt'] ?? null,
             'response_mode' => $config['response_mode'] ?? 'form_post',
             'response_type' => $config['response_type'] ?? ( $audience ? 'id_token code' : 'id_token' ),
@@ -139,7 +155,7 @@ class Login
             return $tokens;
         }
 
-        $valid_state = $this->getValidState($_POST['state'] ?? '');
+        $valid_state = $this->stateHandler->getValidState($_POST['state'] ?? '');
 
         $token_ep_url = $this->issuer->getDiscoveryValue('token_endpoint');
         $code_exchange = [
@@ -185,7 +201,7 @@ class Login
              ]
         );
 
-        return $token_validator->decode($id_token, $this->getNonce());
+        return $token_validator->decode($id_token, $this->nonceHandler->get());
     }
 
     /**
