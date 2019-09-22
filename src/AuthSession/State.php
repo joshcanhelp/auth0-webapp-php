@@ -8,7 +8,7 @@ class State extends Base
 
     protected function getKey() : string
     {
-        return self::KEY_PREFIX . 'auth_state';
+        return 'auth_state';
     }
 
     public function create( array $state ) : string
@@ -25,9 +25,10 @@ class State extends Base
      */
     public function getValidState( string $received_state ) : string
     {
-        if ($received_state !== $this->get() ) {
+        $stored_state = $this->get();
+        if ( $received_state !== $stored_state ) {
             throw new \Exception('Invalid state');
         }
-        return $this->get();
+        return $stored_state;
     }
 }

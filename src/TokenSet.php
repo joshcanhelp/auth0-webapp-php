@@ -14,7 +14,7 @@ final class TokenSet
     private $refreshToken;
     private $state;
 
-    public function __construct( stdClass $tokenObject = null )
+    public function __construct( ?stdClass $tokenObject = null )
     {
         $tokenObject = $tokenObject ?? new stdClass();
         $this->idToken = $tokenObject->id_token ?? null;
@@ -23,7 +23,7 @@ final class TokenSet
         $this->refreshToken = $tokenObject->refresh_token ?? null;
     }
 
-    public function getClaim( string $claim = null ): string
+    public function getClaim( ?string $claim ): ?string
     {
         return (string) $this->idTokenClaims->$claim ?? null;
     }

@@ -11,19 +11,28 @@ class SessionStore implements StoreInterface
         }
     }
 
-    public function set($key, $value)
+    public function set( string $key, $value )
     {
         $_SESSION[$this->getKeyName($key)] = $value;
     }
 
-    public function get($key, $default = null)
+    public function get( string $key, $default = null )
     {
         return $_SESSION[$this->getKeyName($key)] ?? $default;
     }
 
-    public function delete( $key )
+    public function delete( string $key )
     {
         unset($_SESSION[$this->getKeyName($key)]);
+    }
+
+    public function clear()
+    {
+        foreach ( array_keys( $_SESSION ) as $key ) {
+            if ( StoreInterface::BASE_NAME === substr( $key, 0, strlen( StoreInterface::BASE_NAME ) ) ) {
+                $this->delete( $key );
+            }
+        }
     }
 
     public function getKeyName( string $key ) : string

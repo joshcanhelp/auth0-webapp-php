@@ -8,6 +8,6 @@ class Nonce extends Base
 
     protected function getKey() : string
     {
-        return self::KEY_PREFIX . 'auth_nonce';
+        return 'auth_nonce';
     }
 }

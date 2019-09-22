@@ -19,7 +19,7 @@ trait HttpRequests
      * @throws \Exception
      * @throws \Http\Client\Exception
      */
-    protected function httpGet( string $url, TokenSet $token_set = null ) : \stdClass
+    protected function httpGet( string $url, ?TokenSet $token_set = null ) : \stdClass
     {
         $headers = $token_set ? [ 'Authorization' => 'Bearer ' . $token_set->getAccessToken() ] : [];
         return $this->httpRequest('GET', $url, $headers);

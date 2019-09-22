@@ -10,10 +10,12 @@ namespace Auth0\Auth;
 
 use Auth0\Auth\AuthSession\Nonce;
 use Auth0\Auth\AuthSession\State;
+use Auth0\Auth\Cache\MemoryCache;
 use Auth0\Auth\Store\CookieStore;
 use Auth0\Auth\Store\SessionStore;
 use Auth0\Auth\Store\StoreInterface;
 use Auth0\Auth\Traits\HttpRequests;
+use Psr\SimpleCache\CacheInterface;
 
 /**
  * Class Login
@@ -25,7 +27,6 @@ class Login
     use HttpRequests;
 
     const DEFAULT_ID_TOKEN_ALG = 'RS256';
-    const SESSION_BASE_NAME = 'auth0_';
 
     protected $issuerBaseUrl;
     protected $clientId;
@@ -38,17 +39,11 @@ class Login
     protected $stateHandler;
     protected $nonceHandler;
     protected $tokenStore;
+    protected $cache;
 
-    /**
-     * Login constructor.
-     *
-     * @param array $config
-     *
-     * @throws \Exception
-     */
     public function __construct( array $config )
     {
-        $this->issuerBaseUrl = $config['issuer_base_url'] ?? $_ENV['AUTH0_ISSUER_BASE_URL'] ?? '';
+        $this->issuerBaseUrl = $config['issuer_base_url'] ?? $_ENV['AUTH0_ISSUER_BASE_URL'] ?? null;
         if (! $this->issuerBaseUrl ) {
             throw new \Exception('Issuer base URL is required.');
         }
@@ -60,37 +55,34 @@ class Login
 
         $this->redirectUri = $config['redirect_uri'] ?? $_ENV['AUTH0_REDIRECT_URI'] ?? null;
         if (! $this->redirectUri ) {
-            throw new \Exception('Redirect URI is required.');
+            throw new \Exception('"redirectUri" is required.');
         }
 
-        $this->clientSecret = $config['client_secret'] ?? $_ENV['AUTH0_CLIENT_SECRET'] ?? null;
         $this->idTokenAlg = $config['id_token_alg'] ?? $_ENV['AUTH0_ID_TOKEN_ALG'] ?? self::DEFAULT_ID_TOKEN_ALG;
 
+        $this->clientSecret = $config['client_secret'] ?? $_ENV['AUTH0_CLIENT_SECRET'] ?? null;
+        if ('HS256' === $this->idTokenAlg && !$this->clientSecret) {
+            throw new \Exception('"clientSecret" is required when ID token algorithm is HS256.');
+        }
+
         $stateStore = isset( $config['auth_state_store'] ) && $config['auth_state_store'] instanceof StoreInterface ?
-            new $config['auth_state_store'] :
+            $config['auth_state_store'] :
             new CookieStore();
         $this->stateHandler = new State( $stateStore );
 
         $nonceStore = isset( $config['auth_nonce_store'] ) && $config['auth_nonce_store'] instanceof StoreInterface ?
-            new $config['auth_nonce_store'] :
+            $config['auth_nonce_store'] :
             new CookieStore();
         $this->nonceHandler = new Nonce( $nonceStore );
 
-        if ( $config['persist_tokens'] ?? null ) {
-            $this->tokenStore = isset( $config['token_store'] ) && $config['token_store'] instanceof StoreInterface ?
-                new $config['token_store'] :
-                new SessionStore();
-        }
+        $cache = isset( $config['cache'] ) && $config['cache'] instanceof CacheInterface ?
+            $config['cache'] :
+            new MemoryCache();
 
-        $this->issuer = new Issuer($this->issuerBaseUrl);
+        $this->issuer = new Issuer($this->issuerBaseUrl, $cache);
+        $this->issuer->validateIdTokenAlg( $this->idTokenAlg );
     }
 
-    /**
-     * @param array $config
-     *
-     * @throws \Exception
-     * @throws \Http\Client\Exception
-     */
     final public function loginWithRedirect( array $config = [] ): void
     {
         $auth0_login_url = $this->getAuthorizeUrl($config);
@@ -98,16 +90,9 @@ class Login
         exit;
     }
 
-    /**
-     * @param array $config
-     *
-     * @return string
-     * @throws \Exception
-     * @throws \Http\Client\Exception
-     */
     final public function getAuthorizeUrl( array $config = [] ): string
     {
-        $auth_ep_url = $this->issuer->getDiscoveryValue('authorization_endpoint');
+        $auth_ep_url = $this->issuer->getDiscoveryProp('authorization_endpoint');
         $auth_params = $this->prepareAuthParams($config);
 
         $this->nonceHandler->set($auth_params['nonce']);
@@ -116,29 +101,6 @@ class Login
         return $auth_ep_url.'?'.http_build_query($auth_params);
     }
 
-    public function prepareAuthParams( array $config ): array
-    {
-        $audience    = $config['audience'] ?? null;
-        $auth_params = [
-            'client_id'     => $this->clientId,
-            'redirect_uri'  => $this->redirectUri,
-            'audience'      => $audience,
-            'connection'    => $config['connection'] ?? null,
-            'nonce'         => $this->nonceHandler->createNonce(),
-            'state'         => $this->stateHandler->create($config['state'] ?? []),
-            'prompt'        => $config['prompt'] ?? null,
-            'response_mode' => $config['response_mode'] ?? 'form_post',
-            'response_type' => $config['response_type'] ?? ( $audience ? 'id_token code' : 'id_token' ),
-            'scope'         => $config['scope'] ?? 'openid profile email',
-        ];
-        return array_filter($auth_params);
-    }
-
-    /**
-     * @return TokenSet
-     * @throws \Exception
-     * @throws \Http\Client\Exception
-     */
     final public function callbackHandleIdToken() : TokenSet
     {
         $id_token = $_POST['id_token'] ?? '';
@@ -149,11 +111,6 @@ class Login
         return $this->decodeIdToken($id_token);
     }
 
-    /**
-     * @return TokenSet
-     * @throws \Exception
-     * @throws \Http\Client\Exception
-     */
     final public function callbackHandleCode() : TokenSet
     {
         $tokens = new TokenSet();
@@ -166,7 +123,7 @@ class Login
 
         $valid_state = $this->stateHandler->getValidState($_POST['state'] ?? '');
 
-        $token_ep_url = $this->issuer->getDiscoveryValue('token_endpoint');
+        $token_ep_url = $this->issuer->getDiscoveryProp('token_endpoint');
         $code_exchange = [
             'client_id' => $this->clientId,
             'client_secret' => $this->clientSecret,
@@ -192,13 +149,6 @@ class Login
         return $tokens;
     }
 
-    /**
-     * @param $id_token
-     *
-     * @return TokenSet
-     * @throws \Exception
-     * @throws \Http\Client\Exception
-     */
     final public function decodeIdToken( string $id_token ) : TokenSet
     {
         $token_validator = new IdTokenVerifier(
@@ -206,16 +156,13 @@ class Login
                 'algorithm' => $this->idTokenAlg,
                 'signature_key' => $this->getSignatureKey(),
                 'client_id' => $this->clientId,
-                'issuer' => $this->issuer->getDiscoveryValue('issuer'),
+                'issuer' => $this->issuer->getDiscoveryProp('issuer'),
              ]
         );
 
         return $token_validator->decode($id_token, $this->nonceHandler->get());
     }
 
-    /**
-     * @param bool $federated
-     */
     final public function logoutWithRedirect( $federated = false ) : void
     {
         $this->logout();
@@ -228,32 +175,42 @@ class Login
         header('Location: '.$auth0_logout_url);
     }
 
+    public function prepareAuthParams( array $config ): array
+    {
+        $audience    = $config['audience'] ?? null;
+        $auth_params = [
+            'client_id'     => $this->clientId,
+            'redirect_uri'  => $this->redirectUri,
+            'audience'      => $audience,
+            'connection'    => $config['connection'] ?? null,
+            'nonce'         => $this->nonceHandler->createNonce(),
+            'state'         => $this->stateHandler->create($config['state'] ?? []),
+            'prompt'        => $config['prompt'] ?? null,
+            'response_mode' => $config['response_mode'] ?? 'form_post',
+            'response_type' => $config['response_type'] ?? ( $audience ? 'code id_token' : 'id_token' ),
+            'scope'         => $config['scope'] ?? 'openid profile email',
+        ];
+        $auth_params = array_filter($auth_params);
+        $this->issuer->validateParams( $auth_params );
+        return $auth_params;
+    }
+
     public function logout()
     {
         // TODO: Clear session
     }
 
-    /**
-     * @return string|array|null
-     *
-     * @throws \Exception
-     * @throws \Http\Client\Exception
-     */
     public function getSignatureKey()
     {
         switch( $this->idTokenAlg ) {
-        case 'RS256':
-            $jwks = new Issuer($this->issuerBaseUrl);
-            return $jwks->getJwks();
-                    break;
+            case 'RS256':
+                return $this->issuer->getJwks();
 
-        case 'HS256':
-            return $this->clientSecret;
-                    break;
-
-        default:
-            return null;
+            case 'HS256':
+                return $this->clientSecret;
         }
+
+        return null;
     }
 
     public function isAuthenticated() : bool

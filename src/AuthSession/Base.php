@@ -7,8 +7,6 @@ use Auth0\Auth\Store\StoreInterface;
 
 abstract class Base
 {
-    const KEY_PREFIX = 'auth0_';
-
     protected $store;
     protected $value;
 
@@ -35,7 +33,7 @@ abstract class Base
         if ( ! $this->value ) {
             $this->value = $this->store->get($this->getKey(), '');
         }
-        $this->set('');
+        $this->store->delete($this->getKey());
         return $this->value;
     }
 

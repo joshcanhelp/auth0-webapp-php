@@ -5,11 +5,13 @@ interface StoreInterface
 {
     const BASE_NAME = 'auth0_';
 
-    public function set($key, $value);
+    public function set( string $key, $value );
 
-    public function get($key, $default = null);
+    public function get( string $key, $default = null );
 
-    public function delete($key);
+    public function delete( string $key );
+
+    public function clear();
 
     public function getKeyName( string $key ) : string;
 }

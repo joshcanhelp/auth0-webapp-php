@@ -2,60 +2,69 @@
 namespace Auth0\Auth;
 
 use Auth0\Auth\Traits;
+use Psr\SimpleCache\CacheInterface;
 
 class Issuer
 {
     use Traits\HttpRequests;
 
-    protected $jwks;
-    protected $issuerBaseUrl;protected $discoveryDoc;
+    protected $issuerBaseUrl;
+    protected $cache;
 
-    public function __construct( string $issuerBaseUrl )
+    public function __construct( ?string $issuerBaseUrl, CacheInterface $cache )
     {
-        $this->issuerBaseUrl = $issuerBaseUrl;
-    }
-
-    /**
-     * @param $key
-     *
-     * @return mixed
-     *
-     * @throws \Exception
-     * @throws \Http\Client\Exception
-     */
-    public function getDiscoveryValue( string $key ) : string
-    {
-        // TODO: Caching
-        if ($this->discoveryDoc ) {
-            return $this->discoveryDoc->$key;
+        if ( ! filter_var( $issuerBaseUrl, FILTER_VALIDATE_URL ) ) {
+            throw new \Exception( '"issuerBaseUrl" must be a valid URL.' );
         }
 
-        // TODO: Config value testing
-        // TODO: HTTP error handling
-        $discovery_url = $this->issuerBaseUrl . '/.well-known/openid-configuration';
-        $this->discoveryDoc = $this->httpGet($discovery_url);
-        return $this->discoveryDoc->$key ?? null;
+        $this->issuerBaseUrl = $issuerBaseUrl;
+        $this->cache = $cache;
     }
 
-    /**
-     * @return mixed
-     *
-     * @throws \Exception
-     * @throws \Http\Client\Exception
-     */
+    public function getDiscoveryProp( string $key )
+    {
+        $openid_config = $this->cache->get( 'openid_configuration' );
+        if ($openid_config) {
+            return $openid_config->$key;
+        }
+
+        $discovery_url = $this->issuerBaseUrl . '/.well-known/openid-configuration';
+        $openid_config = $this->httpGet($discovery_url);
+        $this->cache->set( 'openid_configuration', $openid_config );
+        return $openid_config->$key ?? null;
+    }
+
     public function getJwks() : array
     {
-        // TODO: Caching
-        if ($this->jwks ) {
-            return $this->jwks;
+        $jwks = $this->cache->get( 'jwks' );
+        if ($jwks) {
+            return $jwks;
         }
 
-        // TODO: Config value testing
-        // TODO: HTTP error handling
-        $jwks_uri = $this->getDiscoveryValue('jwks_uri');
+        $jwks_uri = $this->getDiscoveryProp('jwks_uri');
         $jwks = $this->httpGet($jwks_uri);
-        $this->jwks = $this->prepareJwks($jwks);
-        return $this->jwks;
+        $jwks = $this->prepareJwks($jwks);
+        $this->cache->set( 'jwks', $jwks );
+        return $jwks;
+    }
+
+    public function validateParams( array $params ) {
+        $response_types = $this->getDiscoveryProp( 'response_types_supported' );
+        if ( ! is_iterable( $response_types ) || ! in_array( $params['response_type'], $response_types ) ) {
+            throw new \Exception( sprintf( 'Response type %s not supported.', $params['response_type'] ) );
+        }
+
+        $response_modes = $this->getDiscoveryProp( 'response_modes_supported' );
+        if ( ! is_iterable( $response_modes ) || ! in_array( $params['response_mode'], $response_modes ) ) {
+            throw new \Exception( sprintf( 'Response mode %s not supported.', $params['response_mode'] ) );
+        }
+    }
+
+    public function validateIdTokenAlg( string $alg ) {
+        $id_token_signing_algs = $this->getDiscoveryProp( 'id_token_signing_alg_values_supported' );
+        if ( ! is_iterable( $id_token_signing_algs ) || ! in_array( $alg, $id_token_signing_algs ) ) {
+            throw new \Exception( sprintf( 'ID token alg %s not supported.', $alg ) );
+        }
     }
 
     protected function prepareJwks( \stdClass $jwks ) : array
