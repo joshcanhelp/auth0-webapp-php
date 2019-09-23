@@ -11,12 +11,13 @@ namespace Auth0\Auth;
 use Auth0\Auth\AuthSession\Nonce;
 use Auth0\Auth\AuthSession\State;
 use Auth0\Auth\Cache\MemoryCache;
-use Auth0\Auth\Exception\Auth0Exception;
+use Auth0\Auth\Exception\AuthException;
 use Auth0\Auth\Exception\ConfigurationException;
 use Auth0\Auth\Exception\HttpException;
 use Auth0\Auth\Exception\IdTokenException;
 use Auth0\Auth\Exception\IssuerException;
 use Auth0\Auth\Store\CookieStore;
+use Auth0\Auth\Store\SessionStore;
 use Auth0\Auth\Store\StoreInterface;
 use Psr\SimpleCache\CacheInterface;
 
@@ -36,7 +37,9 @@ class Login
     protected $redirectUri;
     protected $clientSecret;
     protected $idTokenAlg;
+    protected $getUserinfo;
     protected $issuer;
+    protected $userStore;
     protected $stateStore;
     protected $nonceStore;
     protected $stateHandler;
@@ -74,6 +77,21 @@ class Login
         $this->clientSecret = $config['client_secret'] ?? $_ENV['AUTH0_CLIENT_SECRET'] ?? null;
         if ('HS256' === $this->idTokenAlg && !$this->clientSecret) {
             throw new ConfigurationException('"clientSecret" is required when ID token algorithm is HS256.');
+        }
+
+        /*
+         * Get the user profile from the userinfo endpoint.
+         * Requires a response_type including "code" when logging in.
+         */
+        $this->getUserinfo = !! empty( $config['get_userinfo'] );
+
+        /*
+         * This sets the storage engine for persisting the user profile returned from the issuer.
+         */
+        if ( $config['persist_user'] ?? true ) {
+            $this->userStore = isset($config['user_store']) && $config['user_store'] instanceof StoreInterface ?
+                $config['user_store'] :
+                new SessionStore();
         }
 
         $stateStore = isset($config['auth_state_store']) && $config['auth_state_store'] instanceof StoreInterface ?
@@ -127,7 +145,7 @@ class Login
     /**
      * @return TokenSet|null
      *
-     * @throws Auth0Exception
+     * @throws AuthException
      */
     final public function callbackHandleIdToken() : ?TokenSet
     {
@@ -139,13 +157,18 @@ class Login
         $valid_state = $this->stateHandler->getValidState($_POST['state'] ?? null);
         $token_set = $this->decodeIdToken($id_token);
         $token_set->setState($valid_state);
+
+        if ( $this->userStore ) {
+            $this->userStore->set( 'user', $token_set->getClaims() );
+        }
+
         return $token_set;
     }
 
     /**
      * @return TokenSet|null
      *
-     * @throws Auth0Exception
+     * @throws AuthException
      * @throws HttpException
      */
     final public function callbackHandleCode() : ?TokenSet
@@ -170,13 +193,17 @@ class Login
         $token_obj = $this->httpPost($token_ep_url, $code_exchange);
 
         if (! empty($token_obj->error) ) {
-            throw new Auth0Exception($token_obj->error_description ?? $token_obj->error);
+            throw new AuthException( $token_obj->error_description ?? $token_obj->error);
         }
 
         $token_set = $token_obj->id_token ?$this->decodeIdToken($token_obj->id_token) : new TokenSet();
         $token_set->setAccessToken($token_obj);
         $token_set->setRefreshToken($token_obj);
         $token_set->setState($valid_state);
+
+        if ( ! $this->isAuthenticated() && $this->userStore ) {
+            $this->userStore->set( 'user', $token_set->getClaims() );
+        }
 
         return $token_set;
     }
@@ -185,7 +212,9 @@ class Login
      * @param string $id_token
      *
      * @return TokenSet
+     *
      * @throws IdTokenException
+     * @throws IssuerException
      */
     final public function decodeIdToken( string $id_token ) : TokenSet
     {
@@ -205,12 +234,13 @@ class Login
     {
         $this->logout();
         $auth0_logout_url = sprintf(
-            '%s/vs/logout?client_id=%s',
+            '%s/v2/logout?client_id=%s',
             $this->issuerBaseUrl,
             $this->clientId,
             $federated ? '&federated' : ''
         );
         header('Location: '.$auth0_logout_url);
+        exit;
     }
 
     /**
@@ -218,6 +248,7 @@ class Login
      *
      * @return array
      *
+     * @throws AuthException
      * @throws IssuerException
      */
     public function prepareAuthParams( array $config ): array
@@ -237,14 +268,24 @@ class Login
         ];
         $auth_params = array_filter($auth_params);
         $this->issuer->validateParams($auth_params);
+
+        if ( $this->getUserinfo && FALSE === strpos( $auth_params['response_type'], 'code' ) ) {
+            throw new AuthException( 'Cannot user the userinfo endpoint without a response_type including "code".' );
+        }
+
         return $auth_params;
     }
 
     public function logout()
     {
-        // TODO: Clear session
+        $this->userStore->delete('user');
     }
 
+    /**
+     * @return array|string|null
+     *
+     * @throws IssuerException
+     */
     public function getSignatureKey()
     {
         switch( $this->idTokenAlg ) {
@@ -260,10 +301,11 @@ class Login
 
     public function isAuthenticated() : bool
     {
-        return false;
+        return ! empty( $this->userStore->get( 'user' ) );
     }
 
     public function getUser()
     {
+        return $this->userStore->get( 'user' );
     }
 }

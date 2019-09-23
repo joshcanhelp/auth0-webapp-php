@@ -34,7 +34,7 @@ class Issuer
     /**
      * @param string $key
      *
-     * @return null
+     * @return string|array|null
      * @throws IssuerException
      */
     public function getDiscoveryProp( string $key )
@@ -54,32 +54,6 @@ class Issuer
 
         $this->cache->set('openid_configuration', $openid_config);
         return $openid_config->$key ?? null;
-    }
-
-    /**
-     * @return array
-     *
-     * @throws IssuerException
-     */
-    public function getJwks() : array
-    {
-        $jwks = $this->cache->get('jwks');
-        if ($jwks) {
-            return $jwks;
-        }
-
-        $jwks_uri = $this->getDiscoveryProp('jwks_uri');
-
-        try {
-            $jwks = $this->httpGet($jwks_uri);
-        } catch ( HttpException $e ) {
-            $error_msg = 'HTTP error encountered while getting JWKS: ' . $e->getMessage();
-            throw new IssuerException($error_msg, $e->getCode(), $e->getPrevious());
-        }
-
-        $jwks = $this->prepareJwks($jwks);
-        $this->cache->set('jwks', $jwks);
-        return $jwks;
     }
 
     /**
@@ -111,6 +85,32 @@ class Issuer
         if (! is_iterable($id_token_signing_algs) || ! in_array($alg, $id_token_signing_algs) ) {
             throw new IssuerException(sprintf('ID token alg %s not supported.', $alg));
         }
+    }
+
+    /**
+     * @return array
+     *
+     * @throws IssuerException
+     */
+    public function getJwks() : array
+    {
+        $jwks = $this->cache->get('jwks');
+        if ($jwks) {
+            return $jwks;
+        }
+
+        try {
+            $jwks_uri = $this->getDiscoveryProp('jwks_uri');
+            $jwks = $this->httpGet($jwks_uri);
+            $jwks = $this->prepareJwks($jwks);
+        } catch ( \Exception $e ) {
+            $error_msg = 'Problem getting JWKS: ' . $e->getMessage();
+            throw new IssuerException($error_msg, $e->getCode(), $e->getPrevious());
+        }
+
+
+        $this->cache->set('jwks', $jwks);
+        return $jwks;
     }
 
     /**

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Auth0\Auth\AuthSession;
 
-use Auth0\Auth\Exception\Auth0Exception;
+use Auth0\Auth\Exception\AuthException;
 use \stdClass;
 
 class State extends Base
@@ -25,13 +25,13 @@ class State extends Base
      *
      * @return string
      *
-     * @throws Auth0Exception
+     * @throws AuthException
      */
     public function getValidState( ?string $received_state ) : string
     {
         $stored_state = $this->get();
         if ($received_state !== $stored_state ) {
-            throw new Auth0Exception('Invalid state');
+            throw new AuthException('Invalid state');
         }
         return $stored_state;
     }
