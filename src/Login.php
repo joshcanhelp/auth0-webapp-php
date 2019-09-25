@@ -86,8 +86,8 @@ class Login
             'scope' => 'openid profile email',
         ];
 
-        if ( ! empty( $config['authorization_params'] ) && is_iterable( $config['authorization_params'] ) ) {
-            $this->defaultAuthParams = array_replace( $this->defaultAuthParams, (array) $config['authorization_params'] );
+        if (! empty($config['authorization_params']) && is_iterable($config['authorization_params']) ) {
+            $this->defaultAuthParams = array_replace($this->defaultAuthParams, (array) $config['authorization_params']);
         }
 
         /*
@@ -99,7 +99,7 @@ class Login
         /*
          * This sets the storage engine for persisting the user profile returned from the issuer.
          */
-        if ( $config['persist_user'] ?? true ) {
+        if ($config['persist_user'] ?? true ) {
             $this->userStore = isset($config['user_store']) && $config['user_store'] instanceof StoreInterface ?
                 $config['user_store'] :
                 new SessionStore();
@@ -171,8 +171,8 @@ class Login
         $token_set = $this->decodeIdToken($id_token);
         $token_set->setState($valid_state);
 
-        if ( $this->userStore ) {
-            $this->userStore->set( 'user', $token_set->getClaims() );
+        if ($this->userStore ) {
+            $this->userStore->set('user', $token_set->getClaims());
         }
 
         return $token_set;
@@ -206,24 +206,24 @@ class Login
         $token_obj = $this->httpPost($token_ep_url, $code_exchange);
 
         if (! empty($token_obj->error) ) {
-            throw new AuthException( $token_obj->error_description ?? $token_obj->error);
+            throw new AuthException($token_obj->error_description ?? $token_obj->error);
         }
 
-        $token_set = ! empty( $token_obj->id_token ) ? $this->decodeIdToken($token_obj->id_token) : new TokenSet();
+        $token_set = ! empty($token_obj->id_token) ? $this->decodeIdToken($token_obj->id_token) : new TokenSet();
         $token_set->setAccessToken($token_obj);
         $token_set->setRefreshToken($token_obj);
         $token_set->setState($valid_state);
 
-        if ( $this->getClaimsFromUserinfo && $token_set->getAccessToken() ) {
-            $userinfo_ep = $this->issuer->getDiscoveryProp( 'userinfo_endpoint' );
-            $userinfo_claims = $this->httpGet( $userinfo_ep, $token_set );
-            $token_set->setClaims( $userinfo_claims );
-            $this->userStore->set( 'user', $token_set->getClaims() );
+        if ($this->getClaimsFromUserinfo && $token_set->getAccessToken() ) {
+            $userinfo_ep = $this->issuer->getDiscoveryProp('userinfo_endpoint');
+            $userinfo_claims = $this->httpGet($userinfo_ep, $token_set);
+            $token_set->setClaims($userinfo_claims);
+            $this->userStore->set('user', $token_set->getClaims());
         }
 
         // TODO: Do we need to set this higher?
-        if ( ! $this->isAuthenticated() && $this->userStore ) {
-            $this->userStore->set( 'user', $token_set->getClaims() );
+        if (! $this->isAuthenticated() && $this->userStore ) {
+            $this->userStore->set('user', $token_set->getClaims());
         }
 
         return $token_set;
@@ -274,25 +274,25 @@ class Login
      */
     public function prepareAuthParams( array $config ): array
     {
-        $auth_params = array_replace( $this->defaultAuthParams, $config );
+        $auth_params = array_replace($this->defaultAuthParams, $config);
         $auth_params['client_id'] = $this->clientId;
         $auth_params['redirect_uri'] = $this->redirectUri;
         $auth_params['nonce'] = $this->nonceHandler->createNonce();
 
-        $state   = is_iterable( $config['state'] ) ? (array) $config['state'] : [];
+        $state   = is_iterable($config['state']) ? (array) $config['state'] : [];
         $auth_params['state'] = $this->stateHandler->create($state);
 
         $auth_params = array_filter($auth_params);
         $this->issuer->validateParams($auth_params);
 
-        $response_type_excludes_code = ( FALSE === strpos( $auth_params['response_type'], 'code' ) );
+        $response_type_excludes_code = ( false === strpos($auth_params['response_type'], 'code') );
 
-        if ( isset( $auth_params['audience'] ) && $response_type_excludes_code ) {
-            throw new AuthException( 'Cannot get an access token without a response_type including "code".' );
+        if (isset($auth_params['audience']) && $response_type_excludes_code ) {
+            throw new AuthException('Cannot get an access token without a response_type including "code".');
         }
 
-        if ( $this->getClaimsFromUserinfo && $response_type_excludes_code ) {
-            throw new AuthException( 'Cannot use the userinfo endpoint without a response_type including "code".' );
+        if ($this->getClaimsFromUserinfo && $response_type_excludes_code ) {
+            throw new AuthException('Cannot use the userinfo endpoint without a response_type including "code".');
         }
 
         return $auth_params;
@@ -323,12 +323,12 @@ class Login
 
     public function isAuthenticated() : bool
     {
-        $user = $this->userStore->get( 'user' );
-        return ! empty( $user->sub );
+        $user = $this->userStore->get('user');
+        return ! empty($user->sub);
     }
 
     public function getUser()
     {
-        return $this->isAuthenticated() ? $this->userStore->get( 'user' ) : null;
+        return $this->isAuthenticated() ? $this->userStore->get('user') : null;
     }
 }
