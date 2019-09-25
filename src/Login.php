@@ -35,9 +35,10 @@ class Login
     protected $issuerBaseUrl;
     protected $clientId;
     protected $redirectUri;
-    protected $clientSecret;
     protected $idTokenAlg;
-    protected $getUserinfo;
+    protected $clientSecret;
+    protected $defaultAuthParams;
+    protected $getClaimsFromUserinfo;
     protected $issuer;
     protected $userStore;
     protected $stateStore;
@@ -79,11 +80,21 @@ class Login
             throw new ConfigurationException('"clientSecret" is required when ID token algorithm is HS256.');
         }
 
+        $this->defaultAuthParams = [
+            'response_type' => 'id_token',
+            'response_mode' => 'form_post',
+            'scope' => 'openid profile email',
+        ];
+
+        if ( ! empty( $config['authorization_params'] ) && is_iterable( $config['authorization_params'] ) ) {
+            $this->defaultAuthParams = array_replace( $this->defaultAuthParams, (array) $config['authorization_params'] );
+        }
+
         /*
          * Get the user profile from the userinfo endpoint.
          * Requires a response_type including "code" when logging in.
          */
-        $this->getUserinfo = !! empty( $config['get_userinfo'] );
+        $this->getClaimsFromUserinfo = $config['get_claims_from_userinfo'] ?? false;
 
         /*
          * This sets the storage engine for persisting the user profile returned from the issuer.
@@ -110,6 +121,7 @@ class Login
 
         $this->issuer = new Issuer($this->issuerBaseUrl, $cache);
         $this->issuer->validateIdTokenAlg($this->idTokenAlg);
+        $this->issuer->validateParams($this->defaultAuthParams);
     }
 
     /**
@@ -129,6 +141,7 @@ class Login
      *
      * @return string
      *
+     * @throws AuthException
      * @throws IssuerException
      */
     final public function getAuthorizeUrl( array $config = [] ): string
@@ -196,11 +209,19 @@ class Login
             throw new AuthException( $token_obj->error_description ?? $token_obj->error);
         }
 
-        $token_set = $token_obj->id_token ?$this->decodeIdToken($token_obj->id_token) : new TokenSet();
+        $token_set = ! empty( $token_obj->id_token ) ? $this->decodeIdToken($token_obj->id_token) : new TokenSet();
         $token_set->setAccessToken($token_obj);
         $token_set->setRefreshToken($token_obj);
         $token_set->setState($valid_state);
 
+        if ( $this->getClaimsFromUserinfo && $token_set->getAccessToken() ) {
+            $userinfo_ep = $this->issuer->getDiscoveryProp( 'userinfo_endpoint' );
+            $userinfo_claims = $this->httpGet( $userinfo_ep, $token_set );
+            $token_set->setClaims( $userinfo_claims );
+            $this->userStore->set( 'user', $token_set->getClaims() );
+        }
+
+        // TODO: Do we need to set this higher?
         if ( ! $this->isAuthenticated() && $this->userStore ) {
             $this->userStore->set( 'user', $token_set->getClaims() );
         }
@@ -253,24 +274,25 @@ class Login
      */
     public function prepareAuthParams( array $config ): array
     {
-        $audience    = $config['audience'] ?? null;
-        $auth_params = [
-            'client_id'     => $this->clientId,
-            'redirect_uri'  => $this->redirectUri,
-            'audience'      => $audience,
-            'connection'    => $config['connection'] ?? null,
-            'nonce'         => $this->nonceHandler->createNonce(),
-            'state'         => $this->stateHandler->create($config['state'] ?? []),
-            'prompt'        => $config['prompt'] ?? null,
-            'response_mode' => $config['response_mode'] ?? 'form_post',
-            'response_type' => $config['response_type'] ?? ( $audience ? 'code id_token' : 'id_token' ),
-            'scope'         => $config['scope'] ?? 'openid profile email',
-        ];
+        $auth_params = array_replace( $this->defaultAuthParams, $config );
+        $auth_params['client_id'] = $this->clientId;
+        $auth_params['redirect_uri'] = $this->redirectUri;
+        $auth_params['nonce'] = $this->nonceHandler->createNonce();
+
+        $state   = is_iterable( $config['state'] ) ? (array) $config['state'] : [];
+        $auth_params['state'] = $this->stateHandler->create($state);
+
         $auth_params = array_filter($auth_params);
         $this->issuer->validateParams($auth_params);
 
-        if ( $this->getUserinfo && FALSE === strpos( $auth_params['response_type'], 'code' ) ) {
-            throw new AuthException( 'Cannot user the userinfo endpoint without a response_type including "code".' );
+        $response_type_excludes_code = ( FALSE === strpos( $auth_params['response_type'], 'code' ) );
+
+        if ( isset( $auth_params['audience'] ) && $response_type_excludes_code ) {
+            throw new AuthException( 'Cannot get an access token without a response_type including "code".' );
+        }
+
+        if ( $this->getClaimsFromUserinfo && $response_type_excludes_code ) {
+            throw new AuthException( 'Cannot use the userinfo endpoint without a response_type including "code".' );
         }
 
         return $auth_params;
@@ -301,11 +323,12 @@ class Login
 
     public function isAuthenticated() : bool
     {
-        return ! empty( $this->userStore->get( 'user' ) );
+        $user = $this->userStore->get( 'user' );
+        return ! empty( $user->sub );
     }
 
     public function getUser()
     {
-        return $this->userStore->get( 'user' );
+        return $this->isAuthenticated() ? $this->userStore->get( 'user' ) : null;
     }
 }

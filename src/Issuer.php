@@ -63,9 +63,17 @@ class Issuer
      */
     public function validateParams( array $params )
     {
+        if (empty($params['response_type'])) {
+            throw new IssuerException('Response type parameter is missing.');
+        }
+
         $response_types = $this->getDiscoveryProp('response_types_supported');
         if (! is_iterable($response_types) || ! in_array($params['response_type'], $response_types) ) {
             throw new IssuerException(sprintf('Response type %s not supported.', $params['response_type']));
+        }
+
+        if (empty($params['response_mode'])) {
+            throw new IssuerException('Response mode parameter is missing.');
         }
 
         $response_modes = $this->getDiscoveryProp('response_modes_supported');

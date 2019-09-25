@@ -34,6 +34,11 @@ final class TokenSet
         return $this->claims;
     }
 
+    public function setClaims( stdClass $claims ): void
+    {
+        $this->claims = $claims;
+    }
+
     public function setAccessToken( stdClass $tokens ): void
     {
         $this->accessToken = $tokens->access_token ?? null;
