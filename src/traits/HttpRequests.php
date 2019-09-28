@@ -3,8 +3,7 @@ namespace Auth0\Auth\Traits;
 
 use Auth0\Auth\Exception\HttpException;
 use Auth0\Auth\TokenSet;
-use Http\Discovery\HttpClientDiscovery;
-use Http\Discovery\MessageFactoryDiscovery;
+use GuzzleHttp\Client;
 
 trait HttpRequests
 {
@@ -52,20 +51,26 @@ trait HttpRequests
     protected function httpRequest( string $method, string $url, array $headers = [], array $body = [] ) : \stdClass
     {
         if (! $this->httpClient ) {
-            $this->httpClient = HttpClientDiscovery::find();
-        }
-
-        if (! $this->httpMessageFactory ) {
-            $this->httpMessageFactory = MessageFactoryDiscovery::find();
+            $this->httpClient = new Client();
         }
 
         $body = json_encode($body);
+
+        $request_options = [
+            'headers' => $headers,
+            'body' => $body,
+        ];
+
         try {
-            $message = $this->httpMessageFactory->createRequest($method, $url, $headers, $body);
-            $response = $this->httpClient->sendRequest($message)->getBody();
+            $response = $this->httpClient->request($method, $url, $request_options);
+            $body = (string) $response->getBody();
+            if (strpos($response->getHeaderLine('content-type'), 'json') !== false) {
+                $body = json_decode($body);
+            }
         } catch (\Exception $e) {
             throw new HttpException($e->getMessage(), $e->getCode(), $e->getPrevious());
         }
-        return json_decode($response);
+
+        return $body;
     }
 }
