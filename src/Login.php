@@ -171,7 +171,7 @@ class Login
         $token_set = $this->decodeIdToken($id_token);
         $token_set->setState($valid_state);
 
-        if ($this->userStore ) {
+        if ( $this->userStore ) {
             $this->userStore->set('user', $token_set->getClaims());
         }
 
@@ -179,31 +179,26 @@ class Login
     }
 
     /**
+     * @param array $request
+     *
      * @return TokenSet|null
      *
      * @throws AuthException
      * @throws HttpException
+     * @throws IdTokenException
+     * @throws IssuerException
      */
-    final public function callbackHandleCode() : ?TokenSet
+    final public function callbackHandleCode( array $request = [] ) : ?TokenSet
     {
-        $code = $_GET['code'] ?? $_POST['code'] ?? null;
+        $code = $request['code'] ?? $_GET['code'] ?? $_POST['code'] ?? '';
         if (!$code) {
             return null;
         }
 
-        $state = $_GET['state'] ?? $_POST['state'] ?? null;
+        $state = $request['state'] ?? $_GET['state'] ?? $_POST['state'] ?? null;
         $valid_state = $this->stateHandler->getValidState($state);
 
-        $token_ep_url = $this->issuer->getDiscoveryProp('token_endpoint');
-        $code_exchange = [
-            'client_id' => $this->clientId,
-            'client_secret' => $this->clientSecret,
-            'redirect_uri' => $this->redirectUri,
-            'code' => $code,
-            'grant_type' => 'authorization_code'
-        ];
-
-        $token_obj = $this->httpPost($token_ep_url, $code_exchange);
+        $token_obj = $this->httpExchangeCode($code);
 
         if (! empty($token_obj->error) ) {
             throw new AuthException($token_obj->error_description ?? $token_obj->error);
@@ -221,7 +216,6 @@ class Login
             $this->userStore->set('user', $token_set->getClaims());
         }
 
-        // TODO: Do we need to set this higher?
         if (! $this->isAuthenticated() && $this->userStore ) {
             $this->userStore->set('user', $token_set->getClaims());
         }

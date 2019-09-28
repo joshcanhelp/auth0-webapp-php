@@ -2,14 +2,23 @@
 namespace Auth0\Auth\Traits;
 
 use Auth0\Auth\Exception\HttpException;
+use Auth0\Auth\Exception\IssuerException;
+use Auth0\Auth\Issuer;
 use Auth0\Auth\TokenSet;
 use GuzzleHttp\Client;
 
 trait HttpRequests
 {
 
+    /**
+     * @var Client
+     */
     protected $httpClient;
-    protected $httpMessageFactory;
+
+    /**
+     * @var Issuer
+     */
+    protected $issuer;
 
     /**
      * @param string        $url
@@ -36,6 +45,26 @@ trait HttpRequests
     {
         $headers = [ 'Content-Type' => 'application/json' ];
         return $this->httpRequest('POST', $url, $headers, $body);
+    }
+
+    /**
+     * @param string $code
+     *
+     * @return \stdClass
+     * @throws HttpException
+     * @throws IssuerException
+     */
+    protected function httpExchangeCode( string $code ) : \stdClass
+    {
+        $token_ep_url = $this->issuer->getDiscoveryProp('token_endpoint');
+        $body = [
+            'client_id' => $this->clientId,
+            'client_secret' => $this->clientSecret,
+            'redirect_uri' => $this->redirectUri,
+            'code' => $code,
+            'grant_type' => 'authorization_code'
+        ];
+        return $this->httpPost($token_ep_url, $body);
     }
 
     /**
